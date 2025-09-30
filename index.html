@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Spam Filter</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS for advanced styling -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #000000; /* Black background */
+            color: #d1d5db; /* text-gray-300 */
+        }
+        
+        #background-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        .main-grid {
+             height: calc(100vh - 2rem);
+        }
+
+        .scrollable-panel {
+            overflow-y: auto;
+        }
+
+        /* Custom scrollbar for webkit browsers */
+        .scrollable-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+        .scrollable-panel::-webkit-scrollbar-track {
+            background: rgba(17, 24, 39, 0.6);
+        }
+        .scrollable-panel::-webkit-scrollbar-thumb {
+            background-color: #16a34a;
+            border-radius: 4px;
+        }
+
+        /* Glassmorphism Container - Static Version */
+        .glass-container {
+            background: rgba(17, 24, 39, 0.6);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+
+        /* Gradient Button Styling - Matrix Green */
+        .btn-gradient {
+            background-image: linear-gradient(to right, #22c55e, #16a34a);
+            background-size: 200% auto;
+            transition: all 0.4s ease;
+            box-shadow: 0 4px 15px rgba(34, 197, 94, 0.2);
+            position: relative;
+        }
+        .btn-gradient:hover:not(:disabled) {
+            background-position: right center;
+            box-shadow: 0 8px 30px rgba(34, 197, 94, 0.4);
+        }
+        .btn-gradient:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Animated Title */
+        .text-shimmer {
+            background: linear-gradient(90deg, #e5e7eb, #fff, #e5e7eb);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 3s linear infinite;
+        }
+        @keyframes shimmer {
+            to { background-position: -200% center; }
+        }
+
+        /* Custom Input Styling - Matrix Green */
+        .input-custom {
+            background-color: rgba(3, 7, 18, 0.5); /* bg-gray-950 with opacity */
+            border: 1px solid #374151; /* border-gray-700 */
+            transition: all 0.3s ease;
+        }
+        .input-custom:focus {
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5);
+            border-color: #22c55e;
+        }
+
+        /* Styling for the highlighted spam words based on score */
+        .highlight-low { background-color: #facc15; color: #1f2937; } /* yellow-400 */
+        .highlight-medium { background-color: #f97316; color: white; } /* orange-500 */
+        .highlight-high { background-color: #ef4444; color: white; } /* red-500 */
+        .highlight-spam {
+            padding: 2px 5px;
+            border-radius: 5px;
+            font-weight: bold;
+            animation: popIn 0.3s ease forwards;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Styling for keyword tags */
+        .keyword-tag {
+            display: inline-flex;
+            align-items: center;
+            background-color: rgba(55, 65, 81, 0.7);
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-weight: 500;
+            border: 1px solid transparent;
+            animation: fadeIn 0.3s ease forwards;
+        }
+        .keyword-tag.removing { animation: fadeOut 0.3s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        @keyframes fadeOut { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(0.8); } }
+        
+        .keyword-tag button { margin-left: 8px; color: #9ca3af; transition: color 0.2s ease; }
+        .keyword-tag button:hover { color: #f9fafb; }
+        .score-badge { font-size: 0.75rem; margin-left: 6px; padding: 2px 6px; border-radius: 6px; font-weight: bold; }
+        .score-low { background-color: #facc15; color: #1f2937; }
+        .score-medium { background-color: #f97316; color: white; }
+        .score-high { background-color: #ef4444; color: white; }
+
+        /* Final Verdict Styling */
+        .verdict-safe { color: #22c55e; }
+        .verdict-spam { color: #ef4444; }
+
+        /* Loader Animation */
+        .loader {
+            width: 48px;
+            height: 48px;
+            border: 5px solid #22c55e;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+    </style>
+</head>
+<body>
+    <canvas id="background-canvas"></canvas>
+
+    <div class="flex items-center justify-center h-screen p-4">
+        <div id="main-container" class="w-full max-w-6xl mx-auto glass-container rounded-2xl shadow-2xl shadow-green-500/10 grid grid-cols-1 md:grid-cols-2 main-grid">
+            
+            <!-- Left Panel -->
+            <div class="p-6 md:p-8 flex flex-col z-10 scrollable-panel">
+                <div class="flex items-center gap-3 mb-6">
+                     <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-green-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>
+                    <h1 class="text-xl font-bold text-shimmer">Email Spam Filter</h1>
+                </div>
+
+                <div>
+                    <label for="emailContent" class="block text-sm font-medium text-gray-400 mb-2">1. Enter text to analyze:</label>
+                    <textarea id="emailContent" rows="7" class="w-full p-3 input-custom rounded-lg focus:outline-none text-gray-200" placeholder="e.g., You w1n fr33 m0ney!!"></textarea>
+                </div>
+                <div class="mt-4">
+                    <button id="hybridScanBtn" class="w-full btn-gradient text-white font-bold py-3 px-6 rounded-lg focus:outline-none focus:ring-4 focus:ring-green-500/50">
+                        <span class="button-text">Run Hybrid Analysis</span>
+                    </button>
+                </div>
+
+                <div class="mt-8 pt-6 border-t border-gray-700/50 flex-grow">
+                    <h3 class="text-lg font-semibold text-white mb-3">2. Manage Monitored Keywords</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input type="text" id="newKeywordInput" class="sm:col-span-2 input-custom rounded-lg p-2 focus:outline-none text-gray-200" placeholder="Add a new keyword...">
+                        <select id="newKeywordScore" class="input-custom rounded-lg p-2 focus:outline-none text-gray-200">
+                            <option value="1">Low Risk</option>
+                            <option value="3">Medium Risk</option>
+                            <option value="5">High Risk</option>
+                        </select>
+                        <button id="addKeywordBtn" class="sm:col-span-3 bg-gray-700 text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-4 focus:ring-gray-500/50 transition-all">Add Keyword</button>
+                    </div>
+                    <div id="keywordList" class="mt-4 flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="p-6 md:p-8 bg-black/10 z-10 scrollable-panel">
+                 <h2 class="text-xl font-bold text-white mb-4">Scan Results</h2>
+                 <div id="result" class="grid grid-cols-3 gap-4 mb-4 text-center">
+                    <div id="loader-container" class="col-span-3 p-4 rounded-lg bg-gray-950/70 border border-gray-800 flex justify-center items-center min-h-[90px] hidden">
+                        <div class="loader"></div>
+                    </div>
+                    <div id="scores-container" class="col-span-3 grid grid-cols-3 gap-4">
+                        <div id="dfa-score-container" class="p-3 rounded-lg bg-gray-950/70 border border-gray-800">
+                            <p class="text-sm text-gray-400">DFA Score</p>
+                            <p id="dfa-score" class="text-2xl font-bold">-</p>
+                        </div>
+                         <div id="ai-score-container" class="p-3 rounded-lg bg-gray-950/70 border border-gray-800">
+                            <p class="text-sm text-gray-400">AI Confidence</p>
+                            <p id="ai-score" class="text-2xl font-bold">-</p>
+                        </div>
+                         <div id="final-verdict-container" class="p-3 rounded-lg bg-gray-950/70 border border-gray-800">
+                            <p class="text-sm text-gray-400">Final Verdict</p>
+                            <p id="final-verdict" class="text-2xl font-bold">-</p>
+                        </div>
+                    </div>
+                 </div>
+                 <div class="bg-gray-950/70 p-4 rounded-lg min-h-[120px] text-lg leading-relaxed font-mono whitespace-pre-wrap break-words border border-gray-800" id="analysis-container">
+                    <p id="analysis-placeholder" class="text-gray-500">Keyword analysis will appear here...</p>
+                    <div id="analysis-output"></div>
+                 </div>
+
+                 <!-- AI Analysis Section -->
+                 <div class="mt-4">
+                     <h2 class="text-xl font-bold text-white mb-4">AI Analysis</h2>
+                     <div id="ai-result-container" class="bg-gray-950/70 p-4 rounded-lg min-h-[120px] text-base leading-relaxed border border-gray-800">
+                         <p id="ai-placeholder" class="text-gray-500">AI analysis will appear here...</p>
+                         <div id="ai-output"></div>
+                     </div>
+                 </div>
+
+                 <footer class="text-center text-gray-500 text-sm mt-6">
+                    <p>Made by Animesh Reddy</p>
+                 </footer>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- ANIMATED BACKGROUND SCRIPT - Matrix Green ---
+        const canvas = document.getElementById('background-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let mouse = { x: null, y: null, radius: 100 };
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initParticles();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('mousemove', (event) => { mouse.x = event.x; mouse.y = event.y; });
+        window.addEventListener('mouseout', () => { mouse.x = null; mouse.y = null; });
+
+        class Particle {
+            constructor(x, y, dirX, dirY, size, color) { this.x=x;this.y=y;this.dirX=dirX;this.dirY=dirY;this.size=size;this.color=color;}
+            draw() { ctx.beginPath(); ctx.arc(this.x,this.y,this.size,0,Math.PI*2,false); ctx.fillStyle=this.color; ctx.fill(); }
+            update() { if(this.x>canvas.width||this.x<0)this.dirX=-this.dirX; if(this.y>canvas.height||this.y<0)this.dirY=-this.dirY; this.x+=this.dirX; this.y+=this.dirY; this.draw(); }
+        }
+
+        function initParticles() {
+            particles = [];
+            const num = (canvas.height * canvas.width) / 9000;
+            for (let i = 0; i < num; i++) {
+                const size = Math.random()*2+1, x = Math.random()*(innerWidth-size*2)+size, y = Math.random()*(innerHeight-size*2)+size;
+                const dirX = (Math.random()*0.4)-0.2, dirY = (Math.random()*0.4)-0.2;
+                particles.push(new Particle(x,y,dirX,dirY,size,'rgba(34,197,94,0.5)'));
+            }
+        }
+
+        function connectParticles() {
+            for (let a=0;a<particles.length;a++) {
+                for (let b=a;b<particles.length;b++) {
+                    const dist = ((particles[a].x-particles[b].x)**2) + ((particles[a].y-particles[b].y)**2);
+                    if (dist < (canvas.width/7)*(canvas.height/7)) {
+                         const op = 1-(dist/20000);
+                         ctx.strokeStyle=`rgba(34,197,94,${op})`; ctx.lineWidth=1;
+                         ctx.beginPath(); ctx.moveTo(particles[a].x,particles[a].y); ctx.lineTo(particles[b].x,particles[b].y); ctx.stroke();
+                    }
+                }
+            }
+             if(mouse.x!=null&&mouse.y!=null) {
+                ctx.beginPath(); ctx.arc(mouse.x,mouse.y,mouse.radius,0,Math.PI*2);
+                const grad=ctx.createRadialGradient(mouse.x,mouse.y,0,mouse.x,mouse.y,mouse.radius);
+                grad.addColorStop(0,'rgba(34,197,94,0.2)'); grad.addColorStop(1,'rgba(34,197,94,0)');
+                ctx.fillStyle=grad; ctx.fill();
+            }
+        }
+
+        function animate() { requestAnimationFrame(animate); ctx.clearRect(0,0,innerWidth,innerHeight); particles.forEach(p=>p.update()); connectParticles(); }
+
+        resizeCanvas();
+        animate();
+
+        // --- DFA LOGIC (UPDATED FOR SCORING) ---
+        class DFASpamFilter {
+            constructor(keywordObjects){this.keywordObjects=[...new Map(keywordObjects.map(item=>[item.word.toLowerCase(),item])).values()];this.startState=0;this.acceptStates=new Map();this.transitions={};this._buildAutomaton()}
+            _buildAutomaton(){this.transitions[this.startState]={};let e=1;for(const t of this.keywordObjects){let s=this.startState;for(const o of t.word.toLowerCase()){const a=this.transitions[s]||{};a[o]?s=a[o]:(this.transitions[s]=a,a[o]=e,s=e,e++)}this.acceptStates.set(s,t)}}
+            findAllWithScores(text){const e=[];const t=text.split(/\s+/);return t.forEach(t=>{let s=this.startState;for(const o of t)s=this.transitions[s]?.[o]??this.startState;if(this.acceptStates.has(s)){const o=this.acceptStates.get(s);o.word===t&&e.push(o)}}),e}
+        }
+
+        // --- PREPROCESSING LOGIC (Unchanged) ---
+        const normalizationMap={'w1n':'win','fr33':'free','m0ney':'money','c@sh':'cash','cl1ck':'click','pr1ze':'prize','subscr1be':'subscribe'};
+        function preprocessText(text){let e=text.toLowerCase();for(const[t,s]of Object.entries(normalizationMap))e=e.replace(new RegExp(t,'g'),s);return e.replace(/[^\w\s]/g,'')}
+
+        // --- APPLICATION & UI LOGIC ---
+        document.addEventListener('DOMContentLoaded', () => {
+            let keywords = [
+                { word: "free", score: 1 }, { word: "win", score: 1 }, { word: "congratulations", score: 1 },
+                { word: "urgent", score: 3 }, { word: "click here", score: 3 }, { word: "winner", score: 3 },
+                { word: "guaranteed", score: 5 }, { word: "act now", score: 5 }, { word: "cash", score: 5 }, { word: "money", score: 5 }
+            ];
+            let spamFilter;
+            const GEMINI_API_KEY = "AIzaSyCiNcijCfp-z76WakfXg61wORMg_FPjnqo";
+
+            const hybridScanBtn = document.getElementById('hybridScanBtn'), hybridButtonText = hybridScanBtn.querySelector('.button-text');
+            const keywordListDiv = document.getElementById('keywordList');
+            const analysisOutput = document.getElementById('analysis-output'), analysisPlaceholder = document.getElementById('analysis-placeholder');
+            const aiOutput = document.getElementById('ai-output'), aiPlaceholder = document.getElementById('ai-placeholder');
+            const newKeywordInput = document.getElementById('newKeywordInput'), newKeywordScore = document.getElementById('newKeywordScore'), addKeywordBtn = document.getElementById('addKeywordBtn');
+            const emailContent = document.getElementById('emailContent');
+            
+            const loaderContainer = document.getElementById('loader-container');
+            const scoresContainer = document.getElementById('scores-container');
+            const dfaScoreEl = document.getElementById('dfa-score');
+            const aiScoreEl = document.getElementById('ai-score');
+            const finalVerdictEl = document.getElementById('final-verdict');
+
+
+            function renderKeywordsAndRebuildDFA() {
+                keywordListDiv.innerHTML = '';
+                [...new Map(keywords.map(item=>[item.word,item])).values()].forEach(({word,score}) => {
+                    const tag = document.createElement('div');
+                    tag.className = 'keyword-tag';
+                    const scoreClass = score === 1 ? 'score-low' : score === 3 ? 'score-medium' : 'score-high';
+                    const scoreText = score === 1 ? 'Low' : score === 3 ? 'Med' : 'High';
+                    tag.innerHTML = `<span>${word}</span><span class="score-badge ${scoreClass}">${scoreText}</span><button data-word="${word}" class="bg-transparent border-none text-gray-400 hover:text-white">&times;</button>`;
+                    keywordListDiv.appendChild(tag);
+                });
+                spamFilter = new DFASpamFilter(keywords);
+            }
+
+            function addKeyword() {
+                const newWord = newKeywordInput.value.trim().toLowerCase();
+                const newScore = parseInt(newKeywordScore.value);
+                if (newWord) {
+                    keywords = keywords.filter(k => k.word !== newWord); // Remove old entry if exists
+                    keywords.push({ word: newWord, score: newScore });
+                    renderKeywordsAndRebuildDFA();
+                }
+                newKeywordInput.value = '';
+            }
+            
+            addKeywordBtn.addEventListener('click', addKeyword);
+            newKeywordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addKeyword(); });
+
+            keywordListDiv.addEventListener('click', (e) => {
+                if (e.target.tagName === 'BUTTON') {
+                    const wordToRemove = e.target.dataset.word;
+                    keywords = keywords.filter(k => k.word !== wordToRemove);
+                    const tagToRemove = e.target.closest('.keyword-tag');
+                    if (tagToRemove) {
+                        tagToRemove.classList.add('removing');
+                        tagToRemove.addEventListener('animationend', () => renderKeywordsAndRebuildDFA());
+                    }
+                }
+            });
+
+            function runDfaScan(rawText) {
+                analysisPlaceholder.classList.add('hidden');
+                const processedText = preprocessText(rawText);
+                const foundKeywords = spamFilter.findAllWithScores(processedText);
+                
+                let totalScore = 0;
+                const foundMap = new Map();
+                foundKeywords.forEach(kw => {
+                    totalScore += kw.score;
+                    foundMap.set(kw.word, kw.score);
+                });
+
+                analysisOutput.innerHTML = '';
+                const words = processedText.split(/(\s+)/);
+                words.forEach(word => {
+                    const span = document.createElement('span');
+                    const cleanWord = word.trim();
+                    if (foundMap.has(cleanWord)) {
+                        const score = foundMap.get(cleanWord);
+                        const scoreClass = score === 1 ? 'highlight-low' : score === 3 ? 'highlight-medium' : 'highlight-high';
+                        span.className = `highlight-spam ${scoreClass}`;
+                    }
+                    span.textContent = word;
+                    analysisOutput.appendChild(span);
+                });
+                return totalScore;
+            }
+
+            async function runAiScan(userQuery, apiKey) {
+                aiPlaceholder.classList.add('hidden');
+                aiOutput.innerHTML = '<p class="text-gray-400">Analyzing context, tone, and intent...</p>';
+
+                const systemPrompt = "Act as a cybersecurity analyst. Analyze the following text for spam/scam indicators. Provide your response as a JSON object with two keys: 'spamScore' (an integer from 0 to 10, where 10 is definitely spam) and 'analysis' (a brief, single-paragraph explanation).";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    generationConfig: { responseMimeType: "application/json" },
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+
+                    const result = await response.json();
+                    const aiText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                    if (!aiText) throw new Error("No content received from AI.");
+
+                    const aiData = JSON.parse(aiText);
+                    aiOutput.innerHTML = `<p>${aiData.analysis || "No analysis provided."}</p>`;
+                    return aiData.spamScore || 0;
+
+                } catch (error) {
+                    console.error("AI Scan Error:", error);
+                    aiOutput.innerHTML = `<p class="text-red-400">Error during AI analysis. Is the API Key correct?</p>`;
+                    return 0; // Return 0 score on error
+                }
+            }
+            
+            hybridScanBtn.addEventListener('click', async () => {
+                const rawText = emailContent.value;
+                if (!rawText.trim()) return;
+                
+                hybridScanBtn.disabled = true;
+                hybridButtonText.textContent = 'Analyzing...';
+                
+                scoresContainer.classList.add('hidden');
+                loaderContainer.classList.remove('hidden');
+
+                finalVerdictEl.textContent = '-';
+                dfaScoreEl.textContent = '-';
+                aiScoreEl.textContent = '-';
+                finalVerdictEl.className = 'text-2xl font-bold';
+
+
+                // Run both scans in parallel
+                const dfaScorePromise = Promise.resolve(runDfaScan(rawText));
+                const aiScorePromise = runAiScan(rawText, GEMINI_API_KEY);
+
+                const [dfaScore, aiScore] = await Promise.all([dfaScorePromise, aiScorePromise]);
+                
+                dfaScoreEl.textContent = dfaScore;
+                aiScoreEl.textContent = aiScore;
+
+                // Calculate final verdict
+                const normalizedDfaScore = Math.min((dfaScore / 15) * 10, 10); // Normalize DFA score to a 0-10 scale
+                const finalScore = (normalizedDfaScore * 0.4) + (aiScore * 0.6); // Weighted average
+
+                if (finalScore > 5) {
+                    finalVerdictEl.textContent = 'Spam';
+                    finalVerdictEl.classList.add('verdict-spam');
+                } else {
+                    finalVerdictEl.textContent = 'Safe';
+                    finalVerdictEl.classList.add('verdict-safe');
+                }
+
+                loaderContainer.classList.add('hidden');
+                scoresContainer.classList.remove('hidden');
+                hybridScanBtn.disabled = false;
+                hybridButtonText.textContent = 'Run Hybrid Analysis';
+            });
+
+
+            // Initial setup
+            renderKeywordsAndRebuildDFA();
+        });
+    </script>
+</body>
+</html>
+
