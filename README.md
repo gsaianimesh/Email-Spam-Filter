@@ -45,17 +45,17 @@ This project is designed to be incredibly simple to run as it is contained withi
     ```bash
     https://github.com/gsaianimesh/Email-Spam-Filter.git
     ```
-    Or simply download `spam_filter_app.html` and this `README.md`.
+    Or simply download `index.html` and this `README.md`.
 
 2.  **Add Your API Key:**
-    Open the `spam_filter_app.html` file in a text editor. Find the following line (around line 430):
+    Open the `index.html` file in a text editor. Find the following line (around line 430):
     ```javascript
     const GEMINI_API_KEY = "AIzaSyCiNcijCfp-z76WakfXg61wORMg_FPjnqo"; 
     ```
     Replace the key with your own Gemini API key.
 
 3.  **Open in Browser:**
-    Save the file and open `spam_filter_app.html` directly in your web browser. The application is now ready to use.
+    Save the file and open `index.html` directly in your web browser. The application is now ready to use.
 
 How to Use
 Enter Text: Paste the text you want to analyze into the text box on the left.
